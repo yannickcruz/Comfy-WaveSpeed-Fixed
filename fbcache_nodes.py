@@ -4,7 +4,9 @@ import torch
 
 from comfy import model_management
 
+# Certifique-se de que este arquivo esteja no mesmo diretório que o Arquivo 1
 from . import first_block_cache
+
 
 class ApplyFBCacheOnModel:
 
@@ -92,7 +94,8 @@ class ApplyFBCacheOnModel:
         if residual_diff_threshold <= 0.0 or max_consecutive_cache_hits == 0:
             return (model, )
 
-        patch_get_output_data()
+        # FIX: Chamada usando o módulo importado
+        first_block_cache.patch_get_output_data()
 
         using_validation = max_consecutive_cache_hits >= 0 or start > 0 or end < 1
         if using_validation:
@@ -123,8 +126,9 @@ class ApplyFBCacheOnModel:
             nonlocal prev_input_state, prev_timestep, consecutive_cache_hits
             prev_input_state = prev_timestep = None
             consecutive_cache_hits = 0
-            set_current_cache_context(
-                create_cache_context())
+            # FIX: Chamadas usando o módulo importado
+            first_block_cache.set_current_cache_context(
+                first_block_cache.create_cache_context())
 
         def ensure_cache_state(model_input: torch.Tensor, timestep: float):
             # Validates the current cache state and hits/time tracking variables
@@ -134,7 +138,7 @@ class ApplyFBCacheOnModel:
             need_reset = (
                 prev_timestep is None or
                 prev_input_state != input_state or
-                get_current_cache_context() is None or
+                first_block_cache.get_current_cache_context() is None or
                 timestep >= prev_timestep
             )
             if need_reset:
@@ -153,10 +157,10 @@ class ApplyFBCacheOnModel:
         if diffusion_model.__class__.__name__ in ("UNetModel", "Flux"):
 
             if diffusion_model.__class__.__name__ == "UNetModel":
-                create_patch_function = create_patch_unet_model__forward
+                create_patch_function = first_block_cache.create_patch_unet_model__forward
             elif diffusion_model.__class__.__name__ == "Flux":
-                # FIX: Referência atualizada para a função corrigida
-                create_patch_function = create_patch_flux_forward
+                # FIX: Referência atualizada para a nova função sem _orig
+                create_patch_function = first_block_cache.create_patch_flux_forward
             else:
                 raise ValueError(
                     f"Unsupported model {diffusion_model.__class__.__name__}")
@@ -224,7 +228,7 @@ class ApplyFBCacheOnModel:
                         diffusion_model)
 
             cached_transformer_blocks = torch.nn.ModuleList([
-                CachedTransformerBlocks(
+                first_block_cache.CachedTransformerBlocks(
                     None if double_blocks_name is None else getattr(
                         diffusion_model, double_blocks_name),
                     None if single_blocks_name is None else getattr(
