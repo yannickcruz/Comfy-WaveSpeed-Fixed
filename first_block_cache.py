@@ -395,14 +395,25 @@ def create_patch_flux_forward(
         # Packing logic for 4D tensors
         is_packed = False
         unpack_params = None
-        
+
         if img.ndim == 4 and img_ids is None:
             is_packed = True
             b, c, h, w = img.shape
+            
+            # Add padding if the dimensions were odd
+            pad_h = h % 2
+            pad_w = w % 2
+            
+            if pad_h != 0 or pad_w != 0:
+                img = F.pad(img, (0, pad_w, 0, pad_h), mode='reflect')
+                _, _, h_padded, w_padded = img.shape
+            else:
+                h_padded, w_padded = h, w
+            
             img = F.pixel_unshuffle(img, 2)
             b, c_packed, h_packed, w_packed = img.shape
             
-            unpack_params = (b, c, h, w, c_packed, h_packed, w_packed)
+            unpack_params = (b, c, h, w, c_packed, h_packed, w_packed, pad_h, pad_w)
             
             # Creates IDs
             img_ids = torch.zeros(h_packed, w_packed, 3, device=img.device, dtype=img.dtype)
@@ -524,10 +535,13 @@ def create_patch_flux_forward(
         
         # Unpacking if necessary
         if is_packed and unpack_params:
-            b, c, h, w, c_packed, h_packed, w_packed = unpack_params
+            b, c, h, w, c_packed, h_packed, w_packed, pad_h, pad_w = unpack_params
             img = img.reshape(b, h_packed, w_packed, c_packed)
             img = img.permute(0, 3, 1, 2)
             img = F.pixel_shuffle(img, 2)
+
+            if pad_h != 0 or pad_w != 0:
+                img = img[:, :, :h, :w]
         
         return img
     
